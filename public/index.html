@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlashDrop</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+</head>
+<body>
+
+  <!-- top bar -->
+  <header class="topbar">
+    <div class="wordmark">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      FlashDrop
+    </div>
+    <span class="topbar-pill">v1.0</span>
+  </header>
+
+  <main class="main">
+
+    <!-- hero copy -->
+    <h1 class="headline">Send a file. <span>Once.</span></h1>
+    <p class="subline">
+      Drop a file below and get a one-time link.
+      It's deleted the moment someone downloads it —
+      or in 10 minutes, whichever comes first.
+    </p>
+
+    <!-- drop zone -->
+    <div class="drop-zone" id="dropZone">
+      <div class="dz-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div class="dz-text">
+        Drop your file here, or <strong>browse</strong>
+      </div>
+      <div class="dz-limits">
+        <span>100 MB max</span>
+        <span class="dot"></span>
+        <span>1 download</span>
+        <span class="dot"></span>
+        <span>10 min TTL</span>
+      </div>
+      <input type="file" class="file-input" id="fileInput" />
+    </div>
+
+    <!-- upload progress -->
+    <div class="progress-area" id="progressArea">
+      <div class="prog-file-row">
+        <div class="prog-file-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        <div class="prog-file-info">
+          <div class="prog-filename" id="progFilename">file.pdf</div>
+          <div class="prog-meta" id="progMeta">Uploading…</div>
+        </div>
+        <div class="prog-pct" id="progPct">0%</div>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" id="progFill"></div>
+      </div>
+    </div>
+
+    <!-- result -->
+    <div class="result-area" id="resultArea">
+      <div class="result-box">
+
+        <div class="result-top">
+          <div class="result-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="result-details">
+            <div class="result-name" id="resultName"></div>
+            <div class="result-tag-row">
+              <span class="result-tag size" id="resultSize"></span>
+              <span class="result-tag ttl">single-use link</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-link-area">
+          <div class="result-link-label">Share link</div>
+          <div class="link-row">
+            <input type="text" class="link-field" id="linkField" readonly />
+            <button class="copy-btn" id="copyBtn">Copy</button>
+          </div>
+        </div>
+
+        <div class="result-footer">
+          <div class="timer-text" id="timerText"></div>
+          <button class="another-btn" id="anotherBtn">New drop</button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- info strip -->
+    <div class="info-strip">
+      <div class="info-item">
+        <div class="val">Zero accounts</div>
+        <div class="label">No sign-up needed</div>
+      </div>
+      <div class="info-item">
+        <div class="val">1 download</div>
+        <div class="label">Then it's gone</div>
+      </div>
+      <div class="info-item">
+        <div class="val">10 min</div>
+        <div class="label">Auto-destruct</div>
+      </div>
+    </div>
+
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (() => {
+    const $ = id => document.getElementById(id);
+
+    const dropZone      = $('dropZone');
+    const fileInput     = $('fileInput');
+    const progressArea  = $('progressArea');
+    const progFilename  = $('progFilename');
+    const progMeta      = $('progMeta');
+    const progPct       = $('progPct');
+    const progFill      = $('progFill');
+    const resultArea    = $('resultArea');
+    const resultName    = $('resultName');
+    const resultSize    = $('resultSize');
+    const linkField     = $('linkField');
+    const copyBtn       = $('copyBtn');
+    const timerText     = $('timerText');
+    const anotherBtn    = $('anotherBtn');
+    const toast         = $('toast');
+
+    let timer = null;
+
+    /* ── helpers ── */
+    function fmt(b) {
+      if (!b) return '0 B';
+      const u = ['B','KB','MB','GB'];
+      const i = Math.floor(Math.log(b) / Math.log(1024));
+      return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + u[i];
+    }
+
+    function notify(msg, ms = 2800) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), ms);
+    }
+
+    function reset() {
+      progressArea.classList.remove('active');
+      resultArea.classList.remove('active');
+      dropZone.style.display = '';
+      progFill.style.width = '0%';
+      if (timer) clearInterval(timer);
+    }
+
+    /* ── drop zone events ── */
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) upload(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) upload(fileInput.files[0]);
+    });
+
+    /* ── upload ── */
+    function upload(file) {
+      if (file.size > 100 * 1024 * 1024) { notify('File exceeds 100 MB limit.'); return; }
+
+      dropZone.style.display = 'none';
+      resultArea.classList.remove('active');
+      progressArea.classList.add('active');
+
+      progFilename.textContent = file.name;
+      progMeta.textContent = fmt(file.size) + ' · uploading…';
+      progPct.textContent = '0%';
+      progFill.style.width = '0%';
+
+      const fd = new FormData();
+      fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+
+      xhr.upload.addEventListener('progress', e => {
+        if (!e.lengthComputable) return;
+        const p = Math.round(e.loaded / e.total * 100);
+        progPct.textContent = p + '%';
+        progFill.style.width = p + '%';
+        progMeta.textContent = fmt(file.size) + ' · uploading…';
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          done(JSON.parse(xhr.responseText));
+        } else {
+          notify('Upload failed — try again.');
+          reset();
+        }
+      });
+
+      xhr.addEventListener('error', () => { notify('Network error.'); reset(); });
+      xhr.open('POST', '/upload');
+      xhr.send(fd);
+    }
+
+    /* ── success ── */
+    function done(data) {
+      progressArea.classList.remove('active');
+      resultArea.classList.add('active');
+
+      resultName.textContent = data.originalName;
+      resultSize.textContent = fmt(data.size);
+      linkField.value = location.origin + data.link;
+
+      notify('Link ready — share it.');
+      countdown(10 * 60);
+    }
+
+    /* ── timer ── */
+    function countdown(sec) {
+      if (timer) clearInterval(timer);
+      let left = sec;
+      function tick() {
+        const m = String(Math.floor(left / 60)).padStart(2, '0');
+        const s = String(left % 60).padStart(2, '0');
+        timerText.innerHTML = 'Expires in <span class="clock">' + m + ':' + s + '</span>';
+        if (left <= 0) {
+          clearInterval(timer);
+          timerText.innerHTML = '<span class="destroyed">Link expired</span>';
+        }
+        left--;
+      }
+      tick();
+      timer = setInterval(tick, 1000);
+    }
+
+    /* ── copy ── */
+    copyBtn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(linkField.value); } catch { linkField.select(); document.execCommand('copy'); }
+      copyBtn.textContent = 'Copied';
+      notify('Copied to clipboard.');
+      setTimeout(() => copyBtn.textContent = 'Copy', 1800);
+    });
+
+    /* ── new drop ── */
+    anotherBtn.addEventListener('click', () => { reset(); fileInput.value = ''; });
+  })();
+  </script>
+</body>
+</html>
