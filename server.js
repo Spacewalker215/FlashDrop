@@ -6,12 +6,14 @@
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ── Paths ────────────────────────────────────────────────────
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
@@ -57,15 +59,63 @@ const upload = multer({
   limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB cap
 });
 
+// ── Security Headers ─────────────────────────────────────────
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],     // inline script in index.html
+      imgSrc: ["'self'", "data:"],
+    },
+  },
+}));
+
+// ── Rate Limiting ────────────────────────────────────────────
+
+// General limiter — 100 requests per minute per IP for normal browsing
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Slow down.' },
+});
+
+// Strict upload limiter — 10 uploads per 15 minutes per IP
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Upload limit reached. Try again in a few minutes.' },
+});
+
+// Download limiter — 30 downloads per 5 minutes per IP (stops scraping)
+const downloadLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Download limit reached. Try again shortly.' },
+});
+
 // ── Middleware ────────────────────────────────────────────────
+app.use(globalLimiter);
 app.use(cors());
 app.use(express.json());
+
+// Trust proxy when behind Render / Railway / Cloudflare so rate
+// limiting uses the real client IP instead of the proxy's IP.
+app.set('trust proxy', 1);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Routes ───────────────────────────────────────────────────
 
 // POST /upload  →  accept file, store metadata, return share link
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', uploadLimiter, upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file provided.' });
   }
@@ -97,7 +147,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 });
 
 // GET /d/:id  →  download file, then IMMEDIATELY delete it (one-time download)
-app.get('/d/:id', (req, res) => {
+app.get('/d/:id', downloadLimiter, (req, res) => {
   const { id } = req.params;
   const entry = metadata[id];
 
@@ -185,8 +235,8 @@ setInterval(() => {
 // ── Start ────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log('');
-  console.log('  ⚡  FlashDrop is live');
-  console.log(`  🔗  http://localhost:${PORT}`);
-  console.log('  🗑️   Files self-destruct after 1 download or 10 minutes');
+  console.log('  FlashDrop is live');
+  console.log(`  http://localhost:${PORT}`);
+  console.log('  Files self-destruct after 1 download or 10 minutes');
   console.log('');
 });

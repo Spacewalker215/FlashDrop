@@ -2,6 +2,8 @@
 
 One-time file sharing. Drop a file, get a link, share it. The file deletes itself after the first download — or after 10 minutes, whichever happens first. No accounts, no cloud storage, no trace.
 
+**Live →** [flashdrop.onrender.com](https://flashdrop.onrender.com)
+
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18-333?style=flat&logo=node.js)
 ![License](https://img.shields.io/badge/license-MIT-333?style=flat)
 
@@ -46,7 +48,7 @@ Everything is hardcoded because it's a small tool, but the constants you'd want 
 
 | Variable | Default | What it does |
 |---|---|---|
-| `PORT` | `3000` | Server port |
+| `PORT` | `3000` (or `process.env.PORT`) | Server port |
 | `TTL_MS` | `10 * 60 * 1000` | How long before auto-delete (ms) |
 | `CLEANUP_INTERVAL` | `30 * 1000` | How often the cleanup loop runs (ms) |
 | `fileSize` limit | `100 * 1024 * 1024` | Max upload size (100 MB) |
@@ -84,9 +86,21 @@ If you want to change these, just edit the file directly. I didn't add a `.env` 
 
 **`GET /info/:id`** — Check if a file still exists without downloading it. Returns `{ "exists": true/false }` and remaining TTL.
 
+## Security
+
+FlashDrop runs [helmet](https://helmetjs.github.io/) for security headers and [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) on every route:
+
+| Route | Limit | Window |
+|---|---|---|
+| Global (all routes) | 100 requests | 1 minute |
+| `POST /upload` | 10 uploads | 15 minutes |
+| `GET /d/:id` | 30 downloads | 5 minutes |
+
+Limits are per-IP. The server sets `trust proxy` so it works correctly behind reverse proxies (Render, Railway, Cloudflare, etc.).
+
 ## Deployment
 
-This is a Node.js server — it needs a runtime, not static hosting (so GitHub Pages won't work).
+This is a Node.js server — it needs a runtime, not static hosting.
 
 **Render** (free tier):
 1. New → Web Service → connect this repo
@@ -94,16 +108,15 @@ This is a Node.js server — it needs a runtime, not static hosting (so GitHub P
 3. Start command: `node server.js`
 4. Deploy
 
-Also works on Railway, Fly.io, or any VPS with Node installed.
+The port is read from `process.env.PORT` so it works out of the box on Render, Railway, Fly.io, or any platform that injects a port.
 
-> **Note:** The `uploads/` directory needs to be writable. On most platforms this works out of the box. On Render's free tier, the filesystem is ephemeral anyway (containers restart), which actually pairs well with FlashDrop's design — nothing persists.
+> **Note:** On Render's free tier the filesystem is ephemeral (containers restart), which actually pairs well with FlashDrop's design — nothing is meant to persist anyway.
 
 ## Limitations
 
 - Files are stored unencrypted on disk. If you need end-to-end encryption, this isn't it.
 - Single-server only. No clustering, no shared storage.
 - The 100 MB limit is arbitrary — bump it in `server.js` if you want, but keep in mind memory/disk on whatever you're hosting on.
-- No rate limiting. If you expose this to the internet, consider putting it behind Cloudflare or adding `express-rate-limit`.
 
 ## License
 
