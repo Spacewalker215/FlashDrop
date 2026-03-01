@@ -2,7 +2,7 @@
 
 One-time file sharing. Drop a file, get a link, share it. The file deletes itself after the first download — or after 10 minutes, whichever happens first. No accounts, no cloud storage, no trace.
 
-**Live →** [flashdrop.onrender.com](https://flashdrop.onrender.com)
+**Live →** [flashdrop-bgdr.onrender.com](https://flashdrop-bgdr.onrender.com)
 
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18-333?style=flat&logo=node.js)
 ![License](https://img.shields.io/badge/license-MIT-333?style=flat)
