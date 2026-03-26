@@ -56,7 +56,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB cap
+  limits: { fileSize: 3 * 1024 * 1024 * 1024 }, // 3 GB cap
 });
 
 // ── Security Headers ─────────────────────────────────────────
