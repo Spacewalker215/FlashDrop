@@ -175,7 +175,7 @@
 
     /* ── upload ── */
     function upload(file) {
-      if (file.size > 100 * 1024 * 1024) { notify('File exceeds 100 MB limit.'); return; }
+      if (file.size > 3 * 1024 * 1024 * 1024) { notify('File exceeds 3 GB limit.'); return; }
 
       dropZone.style.display = 'none';
       resultArea.classList.remove('active');
